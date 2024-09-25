@@ -4,7 +4,8 @@ source: DOI: 10.1109/e-Science58273.2023.10254878
 $\mathcal{N}$是正态分布  
 $$
 \begin{align*} &\sigma=\frac{w_{max}- w_{min}}{6}\tag{1}
-\\ &w^{\prime}=w+\mathcal{N}(0, \sigma)\tag{2}\end{align*}
+\\ &w^{\prime}=w+\mathcal{N}(0, \sigma)\tag{2}
+\end{align*}
 $$
 
 ---
@@ -52,3 +53,8 @@ source: DOI: 10.1109/TNSE.2024.3391613
 ---
 DOI: 10.1109/CSCWD61410.2024.10580045  
 逆天作者，发的代码居然只是个前端代码，真正训练的是一个后端服务器，代码里面根本没有GA操作的部分。只有简单的数据处理，想骂人。  
+
+
+---
+以上调研结果为在ieee xplore上搜索 federated learning genetic  
+总的来说，参考的地方还是有，但是不多，作为代码参考可以。
