@@ -2,6 +2,10 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import datasets
 from torchvision.transforms import ToTensor
+import torchvision.transforms as transforms
+
+mnist_transform = transforms.Compose([transforms.ToTensor(), 
+                                transforms.Normalize((0.5,), (0.5,))])
 
 class FedData:
     def __init__(self, dataset_name:str) -> None:
@@ -18,7 +22,7 @@ class FedData:
                 root=self.root_name,
                 train=train,
                 download=train,
-                transform=ToTensor()
+                transform=mnist_transform
             )
         elif self.dataset_name.lower() == "emnist" : 
             data = datasets.EMNIST(
