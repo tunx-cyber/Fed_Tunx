@@ -1,89 +1,100 @@
 '''
-
+For test
 '''
-
-class Client(object):
-    def __init__(self) -> None:
-        
-        pass
-    
-    def train():
-        pass
-
-    def test():
-        pass
-
-    def log_train_test():
-        pass
-
-
-import numpy as np
 import torch
-import torchvision.transforms as transforms
+import torch.nn as nn
+import torch.optim as optim
+import numpy as np
 from torchvision import datasets
-from torch.utils.data import DataLoader, Dataset, Subset
-import random
+# 简单的线性模型
+class SimpleModel(nn.Module):
+    def __init__(self):
+        super(SimpleModel, self).__init__()
+        self.fc = nn.Linear(2, 1)  # 假设输入为2维，输出为1维
 
+    def forward(self, x):
+        return self.fc(x)
 
-# 定义一个自定义数据集类
-class NonIIDMNIST(Dataset):
-    def __init__(self, dataset, num_clients, alpha):
-        self.data = dataset
-        self.num_clients = num_clients
-        self.alpha = alpha
-        self.client_data_indices = self.generate_non_iid_indices()
+# 模拟客户端的本地模型更新
+def local_update(model, data_size):
+    optimizer = optim.SGD(model.parameters(), lr=0.01)
+    criterion = nn.MSELoss()
 
-    def generate_non_iid_indices(self):
-        # 获取所有标签
-        y = np.array(self.data.targets)
-        client_indices = [[] for _ in range(self.num_clients)]
-        
-        # 从迪列克雷分布中生成每个客户端的类别比例
-        proportions = np.random.dirichlet(self.alpha, self.num_clients)
+    # 模拟一些本地数据
+    for _ in range(5):  # 模拟5个训练轮次
+        inputs = torch.randn(data_size, 2)  # 随机输入
+        targets = torch.randn(data_size, 1)  # 随机目标值
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, targets)
+        loss.backward()
+        optimizer.step()
 
-        # 为每个客户端选择样本
-        for client in range(self.num_clients):
-            client_labels = []
-            for digit in range(10):
-                num_samples = int(proportions[client][digit] * len(y[y == digit]) * 0.8)  # 80% 的样本
-                indices = np.where(y == digit)[0]
-                selected_indices = np.random.choice(indices, num_samples, replace=False)
-                client_indices[client].extend(selected_indices)
-                client_labels.extend([digit] * num_samples)
+    return model.state_dict()
 
-            # 添加剩余样本（如有）
-            remaining_indices = np.setdiff1d(np.arange(len(y)), client_indices[client])
-            client_indices[client].extend(remaining_indices.tolist())
+# 聚合函数
+def federated_averaging(client_updates, client_sizes):
+    global_weights = {}
+    total_weight = sum(client_sizes)
 
-        return client_indices
+    for key in client_updates[0].keys():
+        global_weights[key] = sum(client_updates[i][key] * client_sizes[i] for i in range(len(client_updates))) / total_weight
 
-    def __len__(self):
-        return len(self.client_data_indices)
+    return global_weights
 
-    def __getitem__(self, idx):
-        client_idx = idx % self.num_clients
-        sample_indices = self.client_data_indices[client_idx]
-        return self.data[sample_indices]
+# 模拟客户端数量和数据样本数量
+num_clients = 3
+client_data_sizes = [50, 75, 25]  # 各客户端的数据样本数量
+client_updates = []
 
-def main():
-    # 加载 MNIST 数据集
-    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
-    mnist_dataset = datasets.MNIST(root='./data', train=True, transform=transform, download=True)
+# 每个客户端进行本地更新
+for i in range(num_clients):
+    model = SimpleModel()  # 每个客户端都有一个新模型
+    local_weights = local_update(model, client_data_sizes[i])
+    client_updates.append(local_weights)
 
-    num_clients = 5
-    alpha = [1.0] * 10  # 迪列克雷分布参数
-    non_iid_mnist = NonIIDMNIST(mnist_dataset, num_clients, alpha)
+print(client_updates[0].items())
+# 进行聚合
+global_weights = federated_averaging(client_updates, client_data_sizes)
 
-    # 创建客户端数据加载器
-    clients_loaders = [DataLoader(Subset(non_iid_mnist.data, non_iid_mnist.client_data_indices[client]), batch_size=32, shuffle=True)
-                       for client in range(num_clients)]
+# 输出结果
+print("聚合后的全局权重:")
+for key, value in global_weights.items():
+    print(f"{key}: {value}")
 
-    # 训练模型的示例
-    for client_loader in clients_loaders:
-        for inputs, labels in client_loader:
-            # 训练逻辑在此处实现
-            pass
+# 添加测试函数
+def test_model(model, test_dataset):
+    model.eval()  # 设置模型为评估模式
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    correct = 0
+    total = 0
+    
+    with torch.no_grad():
+        for images, labels in test_loader:
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
 
-if __name__ == "__main__":
-    main()
-   
+    accuracy = 100 * correct / total
+    return accuracy
+
+# 创建测试数据集
+test_dataset = datasets.MNIST(root='./data', train=False, transform=transform)
+
+# 进行 Federated Learning
+for round in range(5):  # 训练轮数
+    local_states = []
+    for client_data in clients_data:
+        local_state = train_on_client(client_data, model)
+        local_states.append(local_state)
+
+    # FedAvg: 计算全局模型
+    global_state_dict = federated_average(local_states)
+    model.load_state_dict(global_state_dict)
+
+    # 测试模型准确率
+    accuracy = test_model(model, test_dataset)
+    print(f"Round {round + 1}, Accuracy: {accuracy:.2f}%")
+
+print("训练完成！")
