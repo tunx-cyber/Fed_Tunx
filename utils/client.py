@@ -3,16 +3,19 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, Subset
 class Client:
-    def __init__(self, model : nn.Module, dataset : dict) -> None:
+    def __init__(self, model : nn.Module, dataset : dict, id = 0) -> None:
         self.model = model
-        self.dataset = dataset
-        self.batch_size = 36
+        self.id = id
+        self.batch_size = 64
         self.size = len(dataset)
-        self.epoch = 100
+        self.epoch = 10
         self.train_data = dataset["train"]
         self.test_data = dataset["test"]
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.data_size = len(self.train_data)
 
     def train(self):
+        self.model.train()
         optimizer = optim.SGD(self.model.parameters(), lr = 0.01)
         criterion = nn.CrossEntropyLoss()
 
@@ -20,12 +23,13 @@ class Client:
 
         for _ in range(self.epoch):
             for img, label in train_loader:
+                img, label = img.to(self.device), label.to(self.device)
                 optimizer.zero_grad()
                 output = self.model(img)
                 loss = criterion(output, label)
                 loss.backward()
                 optimizer.step()
-            print(f'Epoch [{_+1}/{self.epoch}], Loss: {loss.item():.4f}')
+            print(f'clinet {self.id} Epoch [{_+1}/{self.epoch}], Loss: {loss.item():.4f}')
         return self.model.state_dict()
     
     def test(self):
@@ -37,9 +41,10 @@ class Client:
             total = 0
 
             for images, labels in test_loader:
+                images, labels = images.to(self.device), labels.to(self.device)
                 outputs = self.model(images)
                 _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
-            print(f'测试准确率: {100 * correct / total:.2f}%')
+            print(f'test_acc: {100 * correct / total:.2f}%')
             
