@@ -34,6 +34,7 @@ class FedAvg:
             participants =  random.sample(range(0, self.num_clients), 2)
             weights = []
             for idx in participants:
+                self.clients[idx].model.load_state_dict(self.global_model.state_dict())
                 w = self.clients[idx].train()
                 weights.append(w)
             
@@ -56,8 +57,7 @@ class FedAvg:
         
     
     def test(self):
-        test_set = torch.utils.data.Subset(self.test_set,
-                                           random.sample(range(0, len(self.test_set)),500))
+        test_set = self.test_set
         test_loader = DataLoader(dataset=test_set,batch_size=64)
         self.global_model.eval()
         with torch.no_grad():
