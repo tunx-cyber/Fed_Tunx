@@ -9,7 +9,7 @@ mnist_transform = transforms.Compose([transforms.ToTensor(),
 
 class FedData:
     def __init__(self, dataset_name:str) -> None:
-        self.root_name = "data"+dataset_name
+        self.root_name = "dataset/"+dataset_name
         self.dataset_name = dataset_name
         pass
 
@@ -21,7 +21,7 @@ class FedData:
             data = datasets.MNIST(
                 root=self.root_name,
                 train=train,
-                download=train,
+                download=download,
                 transform=mnist_transform
             )
         elif self.dataset_name.lower() == "emnist" : 
