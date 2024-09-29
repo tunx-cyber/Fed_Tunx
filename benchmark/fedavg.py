@@ -5,6 +5,7 @@ import torch
 import random
 import copy
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class FedAvg:
     def __init__(self, num_clients, model, dataset_name):
@@ -25,23 +26,35 @@ class FedAvg:
                                 id = i ) for i in range(num_clients)]
         self.num_clients = num_clients
         
+        self.test_log = []
 
     #self.model.state_dict() 可以使用key()还有items()
-    def run(self):
-        self.test()
-        participants =  random.sample(range(0, self.num_clients), 2)
-        weights = []
-        for idx in participants:
-            w = self.clients[idx].train()
-            weights.append(w)
+    def run(self, round = 10):
+        for i in range(round):
+            participants =  random.sample(range(0, self.num_clients), 2)
+            weights = []
+            for idx in participants:
+                w = self.clients[idx].train()
+                weights.append(w)
+            
+            client_sizes = [self.clients[idx].data_size for idx in participants]
+            total_size = sum(client_sizes)
+            with torch.no_grad():
+                for name, param in self.global_model.named_parameters():
+                    weight_sum = sum(weights[i][name] *client_sizes[i]/total_size  for i in range(len(weights)))
+                    param.data = weight_sum
+            
+            for idx in participants:
+                self.clients[idx].model.load_state_dict(self.global_model.state_dict())
+            self.test()
         
-        client_sizes = [self.clients[idx].data_size for idx in participants]
-        total_size = sum(client_sizes)
-        with torch.no_grad():
-            for name, param in self.global_model.named_parameters():
-                weight_sum = sum(weights[i][name] *client_sizes[i]/total_size  for i in range(len(weights)))
-                param.data = weight_sum
-        self.test()
+        plt.plot(range(round), self.test_log, label='test_acc', color='blue')
+        plt.title('test_acc')
+        plt.xlabel('round')
+        plt.ylabel('acc')
+        plt.show()
+        
+    
     def test(self):
         test_set = torch.utils.data.Subset(self.test_set,
                                            random.sample(range(0, len(self.test_set)),500))
@@ -58,4 +71,5 @@ class FedAvg:
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
             print(f'global_test_acc: {100 * correct / total:.2f}%')
+            self.test_log.append(100 * correct / total)
 
