@@ -30,6 +30,8 @@ class Client:
                 loss.backward()
                 optimizer.step()
             print(f'clinet {self.id} Epoch [{_+1}/{self.epoch}], Loss: {loss.item():.4f}')
+        #TODO: return the whole model or the difference
+        #we first return the whole model
         return self.model.state_dict()
     
     def test(self):
@@ -47,4 +49,5 @@ class Client:
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
             print(f'test_acc: {100 * correct / total:.2f}%')
+            return correct/total
             
