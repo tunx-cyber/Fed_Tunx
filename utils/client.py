@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import copy
 from torch.utils.data import DataLoader, Dataset, Subset
 class Client:
     def __init__(self, model : nn.Module, dataset : dict, id = 0) -> None:
@@ -15,6 +16,7 @@ class Client:
         self.data_size = len(self.train_data)
 
     def train(self):
+        origin_model = copy.deepcopy(self.model)
         self.model.train()
         optimizer = optim.SGD(self.model.parameters(), lr = 0.01)
         criterion = nn.CrossEntropyLoss()
@@ -30,9 +32,14 @@ class Client:
                 loss.backward()
                 optimizer.step()
             print(f'clinet {self.id} Epoch [{_+1}/{self.epoch}], Loss: {loss.item():.4f}')
-        #TODO: return the whole model or the difference
-        #we first return the whole model
-        return self.model.state_dict()
+        
+        origin_param = origin_model.state_dict()
+        local_param = self.model.state_dict()
+
+        diff = {
+            key: local_param[key] - origin_param[key] for key in  origin_param.keys()
+        }
+        return diff
     
     def test(self):
 

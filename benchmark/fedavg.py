@@ -43,7 +43,7 @@ class FedAvg:
             with torch.no_grad():
                 for name, param in self.global_model.named_parameters():
                     weight_sum = sum(weights[i][name] *client_sizes[i]/total_size  for i in range(len(weights)))
-                    param.data = weight_sum
+                    param.data += weight_sum
             
             for idx in participants:
                 self.clients[idx].model.load_state_dict(self.global_model.state_dict())
