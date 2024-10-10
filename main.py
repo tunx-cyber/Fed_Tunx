@@ -8,8 +8,9 @@ import torch
 import unittest
 import numpy as np
 import benchmark.fedavg as avg
+import FedGA.Fed_Tunx as fedga
 class TestFed(unittest.TestCase):
-    @unittest.skip("clinet test pass")
+    @unittest.skip("client test pass")
     def test_client(self):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         mnist={}
@@ -21,7 +22,14 @@ class TestFed(unittest.TestCase):
 
         c = client.Client(model=models.MLP(28*28,10).to(device=device),dataset=mnist)
 
-        c.train()
+        state = c.train()
+        print(state.keys())
+        # print(state.items())
+        line, col = state["fc1.weight"].size()
+        print(line, col)
+        print(state['fc1.weight'])
+        state['fc1.weight'][0] += torch.ones(len(state['fc1.weight'][0])).to(device=device)
+        print(state['fc1.weight'])
         c.test()
     
     @unittest.skip("noniid setting pass")
@@ -33,12 +41,18 @@ class TestFed(unittest.TestCase):
         dist = noniid.iid_setting(10, 6000)
         print(dist)
 
-    @unittest.skip("fedavg setting pass")
+    @unittest.skip("")
     def test_fedavg(self):
         model=models.MLP(28*28,10)
         dataset_name="mnist"
         server = avg.FedAvg(num_clients=20, model=model,dataset_name=dataset_name)
         server.run()
+    
+    # @unittest.skip("s")
+    def test_fedga(self):
+        model=models.MLP(28*28,10)
+        server = fedga.Fed_GA(20,model,"mnist")
+        server.run(10)
 
 if __name__ == '__main__':
     unittest.main()
