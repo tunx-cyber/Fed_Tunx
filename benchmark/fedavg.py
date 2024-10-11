@@ -27,11 +27,13 @@ class FedAvg:
         self.num_clients = num_clients
         
         self.test_log = []
-
+        self.small_test_set = noniid.get_iid_set(self.test_set,10)
+            
     #self.model.state_dict() 可以使用key()还有items()
     def run(self, round = 10):
         for i in range(round):
-            participants =  random.sample(range(0, self.num_clients), 5)
+            # participants =  range(self.num_clients)
+            participants = random.sample(range(0, self.num_clients), k=5)
             weights = []
             for idx in participants:
                 self.clients[idx].model.load_state_dict(self.global_model.state_dict())
@@ -47,7 +49,7 @@ class FedAvg:
             
             for idx in participants:
                 self.clients[idx].model.load_state_dict(self.global_model.state_dict())
-            print(f"round:[{i}/{round}] ",end="")
+            print(f"round:[{i+1}/{round}] ",end="")
             self.test()
         for client in self.clients:
             client.model.load_state_dict(self.global_model.state_dict())
@@ -61,7 +63,7 @@ class FedAvg:
         
     
     def test(self):
-        test_set = self.test_set
+        test_set = self.small_test_set
         test_loader = DataLoader(dataset=test_set,batch_size=64)
         self.global_model.eval()
         with torch.no_grad():

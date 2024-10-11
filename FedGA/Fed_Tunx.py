@@ -6,7 +6,6 @@ import random
 import copy 
 import torch
 from torch.utils.data import DataLoader
-import numpy as np
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 import matplotlib.pyplot as plt
 from utils import timer
@@ -39,65 +38,71 @@ class Fed_GA:
                                 id = i ) for i in range(num_clients)] 
         
         self.personlized = personlized # need gloabl or personlized
-        self.mutate_prob = 0.15
+        self.mutate_prob = 0.3
         self.num_clients = num_clients
         self.test_log = []
         self.test_g_model = copy.deepcopy(self.global_model)
 
-        self.small_test_set = torch.utils.data.Subset(self.train_set, random.sample(range(len(self.test_set)),k=100))
+        self.small_test_set = noniid.get_iid_set(self.test_set,10)
 
+    def local_training(self, participants):
+        #get the trained parameters（difference)delta
+        weights = []
+        clients_sizes = []
+        for idx in participants:
+            self.population[idx].model.load_state_dict(self.global_model.state_dict())
+            w = copy.deepcopy(self.population[idx].train())
+            clients_sizes.append(self.population[idx].data_size)
+            weights.append(w)
+        
+        return weights, clients_sizes
+            
     #TODO:对GA部分并行化 
-    def run(self, round):
+    def run(self, round=10):
         accs = []
         for r in range(round):
             #Pseudoly choose available clients
             participants = random.sample(range(0, self.num_clients), k=5)
-
+            # participants = range(self.num_clients)
+            for i in participants:
+                self.population[i].train_times+=1
             #get the trained parameters（difference)delta
-            weights = []
-            clients_sizes = []
-            for idx in participants:
-                self.population[idx].model.load_state_dict(self.global_model.state_dict())
-                w = copy.deepcopy(self.population[idx].train())
-                clients_sizes.append(self.population[idx].data_size)
-                weights.append(w)
+            weights, clients_sizes = self.local_training(participants)
             
             #get the fitnesses
             fitness = self.fit_eval(weights=weights, client_sizes=clients_sizes)
-            total = sum(fitness)
-            fitness_prob = [ i/total for i in fitness]
             
             #clone a best model
             index = fitness.index(max(fitness))
             best_weight = copy.deepcopy(weights[index])
-            # select some parents
+            # select some parents 找最相近的交换？而不是最优的几个？
             for i in range(len(participants)):
-                father, mother = self.select(weights=weights,fitness_prob=fitness_prob)
+                father, mother = self.select(weights=weights,fitness_prob=fitness)
                 #father will be a new father, so does mother
-                self.crossover(father=father,mother=mother)
+                self.crossover(father=father,mother= copy.deepcopy(best_weight))
+                self.crossover(father=mother,mother=copy.deepcopy(best_weight))
             
             #new model has been updated, we are going to mutate
-            for i in range(len(weights)):
-                if random.random() < self.mutate_prob:
-                    self.pso_mutate(best_gene=best_weight, gene=weights[i])
-            
-            
-            fitness = self.fit_eval(weights=weights, client_sizes=clients_sizes)
+            self.mutate(best_weight=best_weight,weights=weights)
+                     
             #we can top k
             self.aggregate(weights=weights,client_sizes=clients_sizes)
             
             acc = self.model_test(self.global_model)
             accs.append(acc)
             print(f"round:[{r+1}/{round}] test_acc:{acc*100}%")
-        plt.plot(range(round), accs, label='test_acc', color='blue')
-        plt.title('test_acc')
-        plt.xlabel('round')
-        plt.ylabel('acc')
-        plt.show()
+
+        self.draw_acc(accs,range(round),"round acc")
         accs = self.get_local_test_acc(self.population)
-        plt.plot(range(self.num_clients), accs, label='test_acc', color='blue')
-        plt.title('test_acc')
-        plt.xlabel('client')
+        self.draw_acc(accs,range(self.num_clients),"client acc")
+
+        for c in self.population:
+            print(c.train_times)
+
+    def draw_acc(self,accs,x,s):
+        plt.plot(x, accs, label='test_acc', color='blue')
+        plt.title(s)
+        plt.xlabel('x')
         plt.ylabel('acc')
         plt.show()
 
@@ -124,21 +129,20 @@ class Fed_GA:
         fitness = []
         for i in range(len(weights)):
             fitness.append(self.get_shaply_value(weights,i,client_sizes))
-        return fitness
+        fitness = self.normalize(fitness)
+        total = sum(fitness)
+        fitness_prob = [ i/total for i in fitness]
+        return fitness_prob
     
-    def mutate(self, gene:nn.Module.T_destination):
-        # guassion mutate
-        # mutate_prob = random.random()
-        # if(mutate_prob < self.mutate_prob):
-        #     self.gaussion_mutate(gene=gene,mean=0,stddev=0.01)
-        # pso mutate
-        pass
+    def mutate(self, best_weight,weights):
+        for i in range(len(weights)):
+            if random.random() < self.mutate_prob:
+                self.pso_mutate(best_gene=best_weight, gene=weights[i])
     
     @timer.timer
     def get_shaply_value(self, population : list[nn.Module.T_destination], client_id, client_sizes):
         # generate a aggragation with weight?
         self.test_g_model.load_state_dict(self.global_model.state_dict())
-        shaply_value = None
         total_size = sum(client_sizes)
 
         #这里可以根据name分割 并行计算
@@ -150,7 +154,13 @@ class Fed_GA:
                         weight_sum += population[i][name] * client_sizes[i]/total_size
                 param.data += weight_sum
 
-        shaply_value = self.model_test(self.test_g_model)
+        shaply_value_without = self.model_test(self.test_g_model)
+        with torch.no_grad():
+            for name, param in self.test_g_model.named_parameters():
+                param.data+=population[client_id][name] * client_sizes[client_id]/total_size
+
+        shaply_value_with = self.model_test(self.test_g_model)
+        shaply_value = shaply_value_with - shaply_value_without
         return shaply_value
 
     def get_local_test_acc(self, population : list[Client.Client]):
@@ -162,7 +172,7 @@ class Fed_GA:
 
     def model_test(self, model):
         test_set = self.small_test_set
-        test_loader = DataLoader(dataset=test_set, batch_size=64)
+        test_loader = DataLoader(dataset=test_set, batch_size=10)
         model.eval()
         with torch.no_grad():
             correct = 0
@@ -174,7 +184,6 @@ class Fed_GA:
                 _, predicted = torch.max(outputs.data, 1)
                 total += lables.size(0)
                 correct += (predicted == lables).sum().item()
-            
             return correct/total
     
     def draw_mean_stddev(self, clients):
@@ -205,8 +214,7 @@ class Fed_GA:
         r2 = random.random()
         #v可以通过某种贪心策略计算出来这里我们不考虑
         for key in gene.keys():
-            gene[key]+= c1 * r1*(best_gene[key] - gene[key])+\
-                        c2 * r2*(best_gene[key] - gene[key])
+            gene[key]+= c1*r1*best_gene[key]
 
     def aggregate(self, weights,client_sizes):
         total_size = sum(client_sizes)
@@ -214,4 +222,8 @@ class Fed_GA:
             for key in self.global_model.state_dict().keys():
                 for i in range(len(weights)):
                     self.global_model.state_dict()[key] += weights[i][key]*client_sizes[i]/total_size
-        
+    
+    def normalize(self,data):
+        min_val = min(data)
+        max_val = max(data)
+        return [(x - min_val) / (max_val - min_val) for x in data]

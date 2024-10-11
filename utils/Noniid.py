@@ -44,13 +44,14 @@ def dirichlet_setting(num_clients, dataset, alpha=None):
     client_datasets = [Subset(dataset, indices) for indices in allocated_indices]
     return client_datasets
 
-def iid_setting(num_clients, data_size):
-    size = data_size//num_clients
-    client_dist = []
-    start_idx = 0
-    for i in range(num_clients):
-        end_idx = start_idx + size
-        client_dist.append([start_idx, end_idx])
-        start_idx = end_idx
+def get_iid_set(dataset, num_per_class = 10):
+    labels = np.array(dataset.targets)
+    num_classes = len(set(labels))
+    iid_set=[]
+    for class_idx in range(num_classes):
+        class_indices = np.where(labels == class_idx)[0]
+        np.random.shuffle(class_indices)  # 随机打乱索引
+        iid_set.extend(class_indices[:num_per_class])
     
-    return client_dist
+    iid_set = Subset(dataset,iid_set)
+    return iid_set
