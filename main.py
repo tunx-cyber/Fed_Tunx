@@ -9,6 +9,7 @@ import unittest
 import numpy as np
 import benchmark.fedavg as avg
 import FedGA.Fed_Tunx as fedga
+from utils import timer
 class TestFed(unittest.TestCase):
     @unittest.skip("client test pass")
     def test_client(self):
@@ -34,21 +35,18 @@ class TestFed(unittest.TestCase):
     
     @unittest.skip("noniid setting pass")
     def test_dirichlet(self):
-        import utils.Noniid as noniid
-        dist = noniid.dirichlet_setting(10, 6000)
-        print(dist)
+        pass
 
-        dist = noniid.iid_setting(10, 6000)
-        print(dist)
-
-    @unittest.skip("")
+    # @unittest.skip("")
+    @timer.timer
     def test_fedavg(self):
         model=models.MLP(28*28,10)
         dataset_name="mnist"
         server = avg.FedAvg(num_clients=20, model=model,dataset_name=dataset_name)
-        server.run()
+        server.run(10)
     
     # @unittest.skip("s")
+    @timer.timer
     def test_fedga(self):
         model=models.MLP(28*28,10)
         server = fedga.Fed_GA(20,model,"mnist")
