@@ -8,12 +8,12 @@ class Client:
         self.model = model
         self.id = id
         self.batch_size = 32
-        self.size = len(dataset)
         self.epoch = 5
         self.train_data = dataset["train"]
         self.test_data = dataset["test"]
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.data_size = len(self.train_data)
+        self.train_times = 0
 
     def train(self):
         origin_model = copy.deepcopy(self.model)
@@ -56,6 +56,6 @@ class Client:
                 _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
-            print(f'client{self.id} test_acc: {100 * correct / total:.2f}%')
+            print(f'client {self.id} test_acc: {100 * correct / total:.2f}%')
             return correct/total
             
