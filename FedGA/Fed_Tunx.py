@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 import matplotlib.pyplot as plt
+from utils import timer
 '''
 fitness evaluation
 select
@@ -25,15 +26,15 @@ class Fed_GA:
 
         self.train_set = feddata.get_training_data()
         self.test_set  = feddata.get_test_data()
-        train_data_dist = noniid.dirichlet_setting(num_clients=num_clients, data_size=len(self.train_set))
-        test_data_dist = noniid.dirichlet_setting(num_clients=num_clients, data_size=len(self.test_set))
+        train_data_dist = noniid.dirichlet_setting(num_clients=num_clients,dataset=self.train_set)
+        test_data_dist = noniid.dirichlet_setting(num_clients=num_clients,dataset=self.test_set)
         self.global_model = model.to(device)
 
         # the genes of the population, actually the parameters
         self.population = [Client.Client(model=copy.deepcopy(self.global_model).to(device),
                                 dataset={ 
-                                        "train": torch.utils.data.Subset(self.train_set, range(train_data_dist[i][0], train_data_dist[i][1])), 
-                                        "test": torch.utils.data.Subset(self.test_set, range(test_data_dist[i][0], test_data_dist[i][1]))
+                                        "train": train_data_dist[i], 
+                                        "test": test_data_dist[i]
                                         }, 
                                 id = i ) for i in range(num_clients)] 
         
@@ -43,12 +44,14 @@ class Fed_GA:
         self.test_log = []
         self.test_g_model = copy.deepcopy(self.global_model)
 
-                                          
+        self.small_test_set = torch.utils.data.Subset(self.train_set, random.sample(range(len(self.test_set)),k=100))
+
+    #TODO:对GA部分并行化 
     def run(self, round):
         accs = []
         for r in range(round):
             #Pseudoly choose available clients
-            participants = random.sample(range(0, self.num_clients), k=2)
+            participants = random.sample(range(0, self.num_clients), k=5)
 
             #get the trained parameters（difference)delta
             weights = []
@@ -85,10 +88,16 @@ class Fed_GA:
             
             acc = self.model_test(self.global_model)
             accs.append(acc)
-            print(f"round:{r} test_acc:{acc}")
+            print(f"round:[{r+1}/{round}] test_acc:{acc*100}%")
         plt.plot(range(round), accs, label='test_acc', color='blue')
         plt.title('test_acc')
         plt.xlabel('round')
+        plt.ylabel('acc')
+        plt.show()
+        accs = self.get_local_test_acc(self.population)
+        plt.plot(range(self.num_clients), accs, label='test_acc', color='blue')
+        plt.title('test_acc')
+        plt.xlabel('client')
         plt.ylabel('acc')
         plt.show()
 
@@ -124,13 +133,15 @@ class Fed_GA:
         #     self.gaussion_mutate(gene=gene,mean=0,stddev=0.01)
         # pso mutate
         pass
-
+    
+    @timer.timer
     def get_shaply_value(self, population : list[nn.Module.T_destination], client_id, client_sizes):
         # generate a aggragation with weight?
         self.test_g_model.load_state_dict(self.global_model.state_dict())
         shaply_value = None
         total_size = sum(client_sizes)
 
+        #这里可以根据name分割 并行计算
         with torch.no_grad():
             for name, param in self.test_g_model.named_parameters():
                 weight_sum = torch.zeros(param.data.size()).to(device=device)
@@ -145,11 +156,12 @@ class Fed_GA:
     def get_local_test_acc(self, population : list[Client.Client]):
         acc=[]
         for c in population:
+            c.model.load_state_dict(self.global_model.state_dict())
             acc.append(c.test())
         return acc
 
     def model_test(self, model):
-        test_set = self.test_set
+        test_set = self.small_test_set
         test_loader = DataLoader(dataset=test_set, batch_size=64)
         model.eval()
         with torch.no_grad():
