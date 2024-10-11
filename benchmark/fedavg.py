@@ -13,15 +13,15 @@ class FedAvg:
 
         self.train_set = feddata.get_training_data()
         self.test_set  = feddata.get_test_data()
-        train_data_dist = noniid.dirichlet_setting(num_clients=num_clients, data_size=len(self.train_set))
-        test_data_dist = noniid.dirichlet_setting(num_clients=num_clients, data_size=len(self.test_set))
+        train_data_dist = noniid.dirichlet_setting(num_clients=num_clients,dataset=self.train_set)
+        test_data_dist = noniid.dirichlet_setting(num_clients=num_clients,dataset=self.test_set)
         
         self.global_model = model.to(device)
         
         self.clients = [Client.Client(model=copy.deepcopy(self.global_model).to(device),
                                 dataset={ 
-                                        "train": torch.utils.data.Subset(self.train_set, range(train_data_dist[i][0], train_data_dist[i][1])), 
-                                        "test": torch.utils.data.Subset(self.test_set, range(test_data_dist[i][0], test_data_dist[i][1]))
+                                        "train": train_data_dist[i], 
+                                        "test": test_data_dist[i]
                                         }, 
                                 id = i ) for i in range(num_clients)]
         self.num_clients = num_clients
@@ -31,7 +31,7 @@ class FedAvg:
     #self.model.state_dict() 可以使用key()还有items()
     def run(self, round = 10):
         for i in range(round):
-            participants =  random.sample(range(0, self.num_clients), 2)
+            participants =  random.sample(range(0, self.num_clients), 5)
             weights = []
             for idx in participants:
                 self.clients[idx].model.load_state_dict(self.global_model.state_dict())
@@ -47,7 +47,11 @@ class FedAvg:
             
             for idx in participants:
                 self.clients[idx].model.load_state_dict(self.global_model.state_dict())
+            print(f"round:[{i}/{round}] ",end="")
             self.test()
+        for client in self.clients:
+            client.model.load_state_dict(self.global_model.state_dict())
+            client.test()
         
         plt.plot(range(round), self.test_log, label='test_acc', color='blue')
         plt.title('test_acc')
