@@ -6,9 +6,10 @@ import random
 import copy 
 import torch
 from torch.utils.data import DataLoader
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-import matplotlib.pyplot as plt
 from utils import timer, plt_figure
+from utils.logger import logger
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 '''
 fitness evaluation
 select
@@ -43,7 +44,7 @@ class Fed_GA:
         self.test_log = []
         self.test_g_model = copy.deepcopy(self.global_model)
 
-        self.small_test_set = noniid.get_iid_set(self.test_set,10)
+        self.small_test_set = noniid.get_iid_set(self.test_set,20)
 
     def local_training(self, participants):
         #get the trained parameters（difference)delta
@@ -52,7 +53,7 @@ class Fed_GA:
         for idx in participants:
             self.population[idx].model.load_state_dict(self.global_model.state_dict())
             w = copy.deepcopy(self.population[idx].train())
-            clients_sizes.append(self.population[idx].data_size)
+            clients_sizes.append(self.population[idx].train_data_size)
             weights.append(w)
         
         return weights, clients_sizes
@@ -60,8 +61,10 @@ class Fed_GA:
     #TODO:对GA部分并行化 
     def run(self, round=10):
         accs = []
+        random.seed(42)
         for r in range(round):
             #Pseudoly choose available clients
+            #TODO the clients choose strategy based on the gradient direction
             participants = random.sample(range(0, self.num_clients), k=5)
             # participants = range(self.num_clients)
             for i in participants:
@@ -90,7 +93,8 @@ class Fed_GA:
             
             acc = self.model_test(self.global_model)
             accs.append(acc)
-            print(f"round:[{r+1}/{round}] test_acc:{acc*100}%")
+            # print(f"round:[{r+1}/{round}] test_acc:{acc*100}%")
+            logger.info(f"round:[{r+1}/{round}] test_acc:{acc*100}%")
 
         self.draw_acc(range(round), accs, "round acc")
         self.draw_local_test()     
@@ -134,7 +138,7 @@ class Fed_GA:
             if random.random() < self.mutate_prob:
                 self.pso_mutate(best_gene=best_weight, gene=weights[i])
     
-    @timer.timer
+    # @timer.timer
     def get_shaply_value(self, population : list[nn.Module.T_destination], client_id, client_sizes):
         # generate a aggragation with weight?
         self.test_g_model.load_state_dict(self.global_model.state_dict())

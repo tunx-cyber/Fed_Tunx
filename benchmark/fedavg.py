@@ -6,6 +6,7 @@ import random
 import copy
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+from utils.logger import logger
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class FedAvg:
     def __init__(self, num_clients, model, dataset_name):
@@ -27,10 +28,11 @@ class FedAvg:
         self.num_clients = num_clients
         
         self.test_log = []
-        self.small_test_set = noniid.get_iid_set(self.test_set,10)
+        self.small_test_set = noniid.get_iid_set(self.test_set,20)
             
     #self.model.state_dict() 可以使用key()还有items()
     def run(self, round = 10):
+        random.seed(42)
         for i in range(round):
             # participants =  range(self.num_clients)
             participants = random.sample(range(0, self.num_clients), k=5)
@@ -40,7 +42,7 @@ class FedAvg:
                 w = self.clients[idx].train()
                 weights.append(w)
             
-            client_sizes = [self.clients[idx].data_size for idx in participants]
+            client_sizes = [self.clients[idx].train_data_size for idx in participants]
             total_size = sum(client_sizes)
             with torch.no_grad():
                 for name, param in self.global_model.named_parameters():
@@ -49,7 +51,8 @@ class FedAvg:
             
             for idx in participants:
                 self.clients[idx].model.load_state_dict(self.global_model.state_dict())
-            print(f"round:[{i+1}/{round}] ",end="")
+            # print(f"round:[{i+1}/{round}] ",end="")
+            logger.info(f"round:[{i+1}/{round}] ")
             self.test()
         for client in self.clients:
             client.model.load_state_dict(self.global_model.state_dict())
@@ -76,6 +79,6 @@ class FedAvg:
                 _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
-            print(f'global_test_acc: {100 * correct / total:.2f}%')
+            logger.info(f'global_test_acc: {100 * correct / total:.2f}%')
             self.test_log.append(100 * correct / total)
 
