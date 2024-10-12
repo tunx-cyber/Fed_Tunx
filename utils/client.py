@@ -12,8 +12,10 @@ class Client:
         self.train_data = dataset["train"]
         self.test_data = dataset["test"]
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.data_size = len(self.train_data)
+        self.train_data_size = len(self.train_data)
+        self.test_data_size = len(self.test_data)
         self.train_times = 0
+        self.data_info = self.get_data_dist()
 
     def train(self):
         origin_model = copy.deepcopy(self.model)
@@ -60,16 +62,23 @@ class Client:
             return correct/total
     
     def print_data_dist_info(self):
-        print(f"Client {self.id}: data size is {self.data_size}. data distribution is:")
-        label_dict=self.get_data_dist()
-        print(label_dict)
+        print(f"Client {self.id} data distribution is:")
+        print(self.data_info)
         print()
 
     def get_data_dist(self):
-        label_dict={}
-        for img, lable in self.test_data:
-            if lable not in label_dict.keys():
-                label_dict[lable] = 0
-            label_dict[lable] += 1
+        train_label_dict={}
+        for img, lable in self.train_data:
+            if lable not in train_label_dict.keys():
+                train_label_dict[lable] = 0
+            train_label_dict[lable] += 1
 
+        test_label_dict = {}
+        for img, lable in self.test_data:
+            if lable not in test_label_dict.keys():
+                test_label_dict[lable] = 0
+            test_label_dict[lable] += 1
+        label_dict = {'train data':[self.train_data_size, train_label_dict],
+                     'test data' : [self.test_data_size,  test_label_dict]
+                    }
         return label_dict
