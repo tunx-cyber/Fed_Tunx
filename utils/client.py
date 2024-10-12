@@ -58,4 +58,18 @@ class Client:
                 correct += (predicted == labels).sum().item()
             print(f'client {self.id} test_acc: {100 * correct / total:.2f}%')
             return correct/total
-            
+    
+    def print_data_dist_info(self):
+        print(f"Client {self.id}: data size is {self.data_size}. data distribution is:")
+        label_dict=self.get_data_dist()
+        print(label_dict)
+        print()
+
+    def get_data_dist(self):
+        label_dict={}
+        for img, lable in self.test_data:
+            if lable not in label_dict.keys():
+                label_dict[lable] = 0
+            label_dict[lable] += 1
+
+        return label_dict
