@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import DataLoader
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 import matplotlib.pyplot as plt
-from utils import timer
+from utils import timer, plt_figure
 '''
 fitness evaluation
 select
@@ -92,20 +92,15 @@ class Fed_GA:
             accs.append(acc)
             print(f"round:[{r+1}/{round}] test_acc:{acc*100}%")
 
-        self.draw_acc(accs,range(round),"round acc")
+        self.draw_acc(range(round), accs, "round acc")
+        self.draw_local_test()     
+
+    def draw_acc(self,rounds, accs, title):
+        plt_figure.draw_trainning_acc(rounds=rounds, accs=accs, title=title)
+
+    def draw_local_test(self):
         accs = self.get_local_test_acc(self.population)
-        self.draw_acc(accs,range(self.num_clients),"client acc")
-
-        for c in self.population:
-            print(c.train_times)
-
-    def draw_acc(self,accs,x,s):
-        plt.plot(x, accs, label='test_acc', color='blue')
-        plt.title(s)
-        plt.xlabel('x')
-        plt.ylabel('acc')
-        plt.show()
-
+        plt_figure.draw_clients_acc_bar(self.num_clients, accs)
     def select(self,weights, fitness_prob):
         #demo
         father, mother =  random.choices(weights, weights=fitness_prob,
