@@ -1,37 +1,21 @@
-import utils.client as Client
-import utils.Noniid as noniid
-import data.data as data
+'''
+ B. McMahan, E. Moore, D. Ramage, S. Hampson, and B. A. Y. Arcas,
+ “Communication-efficient learning of deep networks from decentralized
+ data,” in Proc. Int. Conf. Artif. Intell. Statist., 2017, pp. 1273-1282.
+'''
 import torch
+from benchmark import FedBase
 import random
-import copy
-from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
+from utils import metric, plt_figure
 from utils.logger import logger
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-class FedAvg:
+class FedAvg(FedBase.FedBase):
     def __init__(self, num_clients, model, dataset_name):
-        feddata = data.FedData(dataset_name=dataset_name)
-
-        self.train_set = feddata.get_training_data()
-        self.test_set  = feddata.get_test_data()
-        train_data_dist = noniid.dirichlet_setting(num_clients=num_clients,dataset=self.train_set)
-        test_data_dist = noniid.dirichlet_setting(num_clients=num_clients,dataset=self.test_set)
-        
-        self.global_model = model.to(device)
-        
-        self.clients = [Client.Client(model=copy.deepcopy(self.global_model).to(device),
-                                dataset={ 
-                                        "train": train_data_dist[i], 
-                                        "test": test_data_dist[i]
-                                        }, 
-                                id = i ) for i in range(num_clients)]
-        self.num_clients = num_clients
-        
-        self.test_log = []
-        self.small_test_set = noniid.get_iid_set(self.test_set,20)
+        super().__init__(num_clients, model, dataset_name)
             
     #self.model.state_dict() 可以使用key()还有items()
     def run(self, round = 10):
+        accs = []
         random.seed(42)
         for i in range(round):
             # participants =  range(self.num_clients)
@@ -49,36 +33,9 @@ class FedAvg:
                     weight_sum = sum(weights[i][name] *client_sizes[i]/total_size  for i in range(len(weights)))
                     param.data += weight_sum
             
-            for idx in participants:
-                self.clients[idx].model.load_state_dict(self.global_model.state_dict())
-            # print(f"round:[{i+1}/{round}] ",end="")
-            logger.info(f"round:[{i+1}/{round}] ")
-            self.test()
-        for client in self.clients:
-            client.model.load_state_dict(self.global_model.state_dict())
-            client.test()
+            acc = metric.get_accuracy(self.clients, self.global_model)
+            logger.info(f"round:[{i+1}/{round}] test_acc:{acc*100}%")
+            accs.append(acc)
         
-        plt.plot(range(round), self.test_log, label='test_acc', color='blue')
-        plt.title('test_acc')
-        plt.xlabel('round')
-        plt.ylabel('acc')
-        plt.show()
+        plt_figure.draw_trainning_acc(range(round), accs, "round acc")
         
-    
-    def test(self):
-        test_set = self.small_test_set
-        test_loader = DataLoader(dataset=test_set,batch_size=64)
-        self.global_model.eval()
-        with torch.no_grad():
-            correct = 0
-            total = 0
-
-            for images, labels in test_loader:
-                images, labels = images.to(device), labels.to(device)
-                outputs = self.global_model(images)
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-            logger.info(f'global_test_acc: {100 * correct / total:.2f}%')
-            self.test_log.append(100 * correct / total)
-
