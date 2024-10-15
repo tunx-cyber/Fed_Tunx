@@ -14,3 +14,7 @@ def draw_trainning_acc(rounds, accs, title):
     plt.xlabel('round')
     plt.ylabel('accuracy')
     plt.show()
+
+#TODO
+def draw_clients_data_dist(clients_data_dist):
+    pass

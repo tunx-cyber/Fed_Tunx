@@ -2,8 +2,6 @@ import numpy as np
 from torch.utils.data import Subset
 # every client has a start index and end index for indexing the data 
 def dirichlet_setting(num_clients, dataset, alpha=None):
-    #为了使结果可重复
-    np.random.seed(42) 
     """
     使用 Dirichlet 分布将数据集分配给客户端
 
@@ -22,7 +20,7 @@ def dirichlet_setting(num_clients, dataset, alpha=None):
     # 使用 Dirichlet 分布生成客户端的类别比例
     if alpha == None:
         alpha = default_alpha
-           
+        
     #每个客户端获得是类别的比例，也就是一个客户端对应的数组所有之数之和等于1
     dirichlet_samples = np.random.dirichlet(alpha, num_clients)
 
