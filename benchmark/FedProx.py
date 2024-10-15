@@ -46,6 +46,6 @@ class FedProx(FedBase.FedBase):
             accs.append(acc)
         
         plt_figure.draw_trainning_acc(range(round), accs, "round acc")
-    
+        self.draw_local_test()
     
 
